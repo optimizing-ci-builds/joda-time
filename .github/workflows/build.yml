@@ -2,16 +2,7 @@
 
 name: Build
 
-on: 
-  push:
-    branches:
-      - '*'
-    tags:
-      - 'v*'
-      - 'website*'
-  pull_request:
-    branches:
-      - 'main'
+on: [push]
 
 permissions:
   contents: read
@@ -21,9 +12,23 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas
+        pip install numpy
+        pip install inotify
+    - run: sudo apt update
+    - run: touch starting_build_Checkout_24
+    - run: rm starting_build_Checkout_24
     - name: Checkout
       uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b  #v3.0.2
 
+    - run: touch starting_build_SetupJDK_27
+    - run: rm starting_build_SetupJDK_27
     - name: Set up JDK
       uses: actions/setup-java@2c7a4878f5d120bd643426d54ae1209b29cc01a3  #v3.4.1
       with:
@@ -31,6 +36,8 @@ jobs:
         distribution: 'temurin'
         cache: 'maven'
 
+    - run: touch starting_build_Mavenversion_34
+    - run: rm starting_build_Mavenversion_34
     - name: Maven version
       run: |
         mkdir -p ./.mvn
@@ -38,14 +45,58 @@ jobs:
         mvn --version
         mkdir -p target
 
+    - run: touch starting_build_Mavenbuild_41
+    - run: rm starting_build_Mavenbuild_41
     - name: Maven build
       run: |
         mvn install site
 
+    - run: touch starting_build_Website_45
+    - run: rm starting_build_Website_45
     - name: Website
-      if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/website') || startsWith(github.ref, 'refs/tags/v'))
       env:
         GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN_GH }}
       run: |
         chmod +x ./.github/website.sh
         .github/website.sh
+    - run: touch starting_finished_finished_8979874
+      if: always()
+    - run: rm starting_finished_finished_8979874
+      if: always()
+    - name: rat check
+      if: always()
+      run: |
+         if [ -f /home/runner/work/joda-time/joda-time/target/rat.txt ]; then cat /home/runner/work/joda-time/joda-time/target/rat.txt; fi
+    - name: Check script file exists and execute
+      if: always()
+      run: |
+        [ -f .github/workflows/script.py ] && python .github/workflows/script.py
+        [ -f /home/runner/work/joda-time/joda-time/optimizing-ci-builds-ci-analysis/job.csv ] || mkdir -p /home/runner/work/joda-time/joda-time/optimizing-ci-builds-ci-analysis/; echo "${GITHUB_RUN_ID},${GITHUB_JOB},joda-time,${GITHUB_WORKFLOW}" > /home/runner/work/joda-time/joda-time/optimizing-ci-builds-ci-analysis/job.csv
+    - name: Checkout to destination CI-analyzes repo
+      uses: actions/checkout@v3
+      if: always()
+      with:
+        path: joda-time
+        ref: '1691374686-548a464'
+        repository: 'UT-SE-Research/ci-analyzes'
+        token: '${{ secrets.API_TOKEN_GITHUB }}'
+        persist-credentials: true
+    - name: Copy files to push to another directory
+      if: always()
+      run: |
+        mkdir -p joda-time/joda-time/.github/workflows/build/build
+        cp -rvT optimizing-ci-builds-ci-analysis joda-time/joda-time/.github/workflows/build/build
+    - run: echo https://github.com/UT-SE-Research/ci-analyzes/tree/1691374686-548a464/joda-time/.github/workflows/build/build
+    - name: Pushes analysis to another repository
+      if: always()
+      working-directory: joda-time
+      run: |
+        commit_message=$GITHUB_REPOSITORY@$GITHUB_WORKFLOW_SHA
+        git config --global user.name 'UT-SE-Research'
+        git config --global user.email '${{ secrets.EMAIL }}'
+        git add .
+        git commit -m $commit_message
+        while ! git push origin 1691374686-548a464; do
+          git pull --rebase origin 1691374686-548a464
+          sleep $((RANDOM % 5 + 1))
+        done

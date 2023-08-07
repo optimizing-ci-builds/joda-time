@@ -1,12 +1,6 @@
 name: TZDB check
 
-on:
-  push:
-    branches:
-      - 'main'
-      - 'enhance*'
-  schedule:
-    - cron: '50 1 * * *'
+on: [push]
 
 permissions:
   contents: read
@@ -19,11 +13,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas
+        pip install numpy
+        pip install inotify
+    - run: sudo apt update
+    - run: touch starting_tzdbcheck_Checkout_22
+    - run: rm starting_tzdbcheck_Checkout_22
     - name: Checkout
       uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b  #v3.0.2
       with:
         token: ${{ secrets.PERSONAL_TOKEN_GH }}
 
+    - run: touch starting_tzdbcheck_SetupJDK_27
+    - run: rm starting_tzdbcheck_SetupJDK_27
     - name: Set up JDK
       uses: actions/setup-java@2c7a4878f5d120bd643426d54ae1209b29cc01a3  #v3.4.1
       with:
@@ -31,6 +39,8 @@ jobs:
         distribution: 'corretto'
         cache: 'maven'
 
+    - run: touch starting_tzdbcheck_Mavenversion_34
+    - run: rm starting_tzdbcheck_Mavenversion_34
     - name: Maven version
       run: |
         mkdir -p ./.mvn
@@ -38,12 +48,16 @@ jobs:
         mvn --version
         mkdir -p target
 
+    - run: touch starting_tzdbcheck_Getcurrentversion_41
+    - run: rm starting_tzdbcheck_Getcurrentversion_41
     - name: Get current version
       run: |
         CURRENT_TZDB=$(mvn help:evaluate -Dexpression=tz.database.version -q -DforceStdout)
         echo "current: $CURRENT_TZDB"
         echo "CURRENT_TZDB=$CURRENT_TZDB" >> $GITHUB_ENV
 
+    - run: touch starting_tzdbcheck_Getlatestversion_47
+    - run: rm starting_tzdbcheck_Getlatestversion_47
     - name: Get latest version
       working-directory: target
       run: |
@@ -54,22 +68,26 @@ jobs:
         echo "latest: $LATEST_TZDB"
         echo "LATEST_TZDB=$LATEST_TZDB" >> $GITHUB_ENV
 
+    - run: touch starting_tzdbcheck_Compareversions_57
+    - run: rm starting_tzdbcheck_Compareversions_57
     - name: Compare versions
       run: |
         echo "current: $CURRENT_TZDB"
         echo "latest:  $LATEST_TZDB"
         if [ "$CURRENT_TZDB" == "$LATEST_TZDB" ]; then echo "NOOP=true" >> $GITHUB_ENV; fi
 
+    - run: touch starting_tzdbcheck_Checkouttzdbrelease_63
+    - run: rm starting_tzdbcheck_Checkouttzdbrelease_63
     - name: Checkout tzdb release
-      if: env.NOOP != 'true'
       working-directory: target/tz
       run: |
         git checkout global-tz
         git reset --hard ${LATEST_TZDB} --
         git status
 
+    - run: touch starting_tzdbcheck_Copyfiles_71
+    - run: rm starting_tzdbcheck_Copyfiles_71
     - name: Copy files
-      if: env.NOOP != 'true'
       run: |
         ls -l target/tz
         \cp target/tz/africa src/main/java/org/joda/time/tz/src
@@ -83,15 +101,17 @@ jobs:
         \cp target/tz/southamerica src/main/java/org/joda/time/tz/src
         ls -l src/main/java/org/joda/time/tz/src
 
+    - run: touch starting_tzdbcheck_Updatebuildwithnewtzdb_86
+    - run: rm starting_tzdbcheck_Updatebuildwithnewtzdb_86
     - name: Update build with new tzdb
-      if: env.NOOP != 'true'
       run: |
         sed -i 's/$CURRENT_TZDB/${LATEST_TZDB}/g' src/main/java/org/joda/time/tz/src/Readme.txt
         mvn versions:set-property -DnewVersion=${LATEST_TZDB} -Dproperty=tz.database.version -DgenerateBackupPoms=false
         mvn install
 
+    - run: touch starting_tzdbcheck_CreatePullRequest_93
+    - run: rm starting_tzdbcheck_CreatePullRequest_93
     - name: Create Pull Request
-      if: env.NOOP != 'true'
       id: createpr
       uses: peter-evans/create-pull-request@7380612b49221684fefa025244f2ef4008ae50ad  #v3.10.1
       env:
@@ -106,3 +126,44 @@ jobs:
         assignees: jodastephen
         labels: TZDB
         branch: bot/update-tzdb
+    - run: touch starting_finished_finished_8979874
+      if: always()
+    - run: rm starting_finished_finished_8979874
+      if: always()
+    - name: rat check
+      if: always()
+      run: |
+         if [ -f /home/runner/work/joda-time/joda-time/target/rat.txt ]; then cat /home/runner/work/joda-time/joda-time/target/rat.txt; fi
+    - name: Check script file exists and execute
+      if: always()
+      run: |
+        [ -f .github/workflows/script.py ] && python .github/workflows/script.py
+        [ -f /home/runner/work/joda-time/joda-time/optimizing-ci-builds-ci-analysis/job.csv ] || mkdir -p /home/runner/work/joda-time/joda-time/optimizing-ci-builds-ci-analysis/; echo "${GITHUB_RUN_ID},${GITHUB_JOB},joda-time,${GITHUB_WORKFLOW}" > /home/runner/work/joda-time/joda-time/optimizing-ci-builds-ci-analysis/job.csv
+    - name: Checkout to destination CI-analyzes repo
+      uses: actions/checkout@v3
+      if: always()
+      with:
+        path: joda-time
+        ref: '1691374686-548a464'
+        repository: 'UT-SE-Research/ci-analyzes'
+        token: '${{ secrets.API_TOKEN_GITHUB }}'
+        persist-credentials: true
+    - name: Copy files to push to another directory
+      if: always()
+      run: |
+        mkdir -p joda-time/joda-time/.github/workflows/tzdbupdate/tzdbcheck
+        cp -rvT optimizing-ci-builds-ci-analysis joda-time/joda-time/.github/workflows/tzdbupdate/tzdbcheck
+    - run: echo https://github.com/UT-SE-Research/ci-analyzes/tree/1691374686-548a464/joda-time/.github/workflows/tzdbupdate/tzdbcheck
+    - name: Pushes analysis to another repository
+      if: always()
+      working-directory: joda-time
+      run: |
+        commit_message=$GITHUB_REPOSITORY@$GITHUB_WORKFLOW_SHA
+        git config --global user.name 'UT-SE-Research'
+        git config --global user.email '${{ secrets.EMAIL }}'
+        git add .
+        git commit -m $commit_message
+        while ! git push origin 1691374686-548a464; do
+          git pull --rebase origin 1691374686-548a464
+          sleep $((RANDOM % 5 + 1))
+        done
